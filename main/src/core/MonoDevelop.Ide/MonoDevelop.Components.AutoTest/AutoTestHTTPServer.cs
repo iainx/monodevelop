@@ -58,14 +58,10 @@ namespace MonoDevelop.Components.AutoTest
 			running = true;
 			while (running) {
 				HttpListenerContext context = await listener.GetContextAsync ();
-				//AutoTestSession session = AutoTestService.CurrentSession;
-				//AppQuery q = session.CreateNewQuery ();
-				//XmlDocument doc = session.ExecuteQueryAndGenerateXml (q);
 
 				AppQuery q = new AppQuery ();
 				XmlDocument doc = q.ExecuteAndGenerateXml ();
 
-				//var sb = new StringBuilder ();
 				string msg;
 				using (var sw = new UTF8StringWriter ()) {
 					using (var xw = XmlWriter.Create (sw, new XmlWriterSettings {Indent = true})) {
