@@ -41,6 +41,8 @@ namespace MonoDevelop.Components.AutoTest
 			get { return manager.currentSession; } 
 		}
 
+		static AutoTestHTTPServer httpServer;
+
 		public static void Start (CommandManager commandManager, bool publishServer)
 		{
 			AutoTestService.commandManager = commandManager;
@@ -63,6 +65,12 @@ namespace MonoDevelop.Components.AutoTest
 				bf.Serialize (ms, oref);
 				sref = Convert.ToBase64String (ms.ToArray ());
 				File.WriteAllText (SessionReferenceFile, sref);
+			}
+
+			string runServer = Environment.GetEnvironmentVariable ("MONO_AUTOTEST_ENABLE_TEST_SERVER");
+			if (!string.IsNullOrEmpty (runServer)) {
+				httpServer = new AutoTestHTTPServer ();
+				httpServer.Start ();
 			}
 		}
 		
