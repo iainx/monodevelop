@@ -31,6 +31,8 @@ using MonoDevelop.Components.AutoTest.Operations;
 using MonoDevelop.Components.AutoTest.Results;
 using System.Linq;
 
+using Xwt;
+
 #if MAC
 using AppKit;
 #endif
@@ -98,6 +100,32 @@ namespace MonoDevelop.Components.AutoTest
 			return firstChild;
 		}
 #endif
+
+		AppResult GenerateChildrenForXWT (IWidgetSurface widget, List<AppResult> resultSet)
+		{
+			AppResult firstChild = null, lastChild = null;
+
+			foreach (var child in widget.Children) {
+				AppResult node = new XwtWidgetResult ();
+				resultSet.Add (node);
+
+				if (firstChild == null) {
+					firstChild = node;
+					lastChild = node;
+				} else {
+					lastChild.NextSibling = node;
+					node.PreviousSibling = lastChild;
+					lastChild = node;
+				}
+
+				if ((child as IWidgetSurface).Children) {
+					AppResult children = GenerateChildrenForXWT (child, resultSet);
+					node.FirstChild = children;
+				}
+			}
+
+			return firstChild;
+		}
 
 		List<AppResult> ResultSetFromWindows ()
 		{
