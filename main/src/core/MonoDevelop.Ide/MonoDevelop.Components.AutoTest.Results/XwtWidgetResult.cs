@@ -25,12 +25,72 @@
 // THE SOFTWARE.
 using System;
 
+using Xwt;
+
 namespace MonoDevelop.Components.AutoTest.Results
 {
 	public class XwtWidgetResult : AppResult
 	{
-		public XwtWidgetResult ()
+		IWidgetSurface resultWidget;
+
+		public XwtWidgetResult (IWidgetSurface resultWidget)
 		{
+			this.resultWidget = resultWidget;
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("[XwtWidgetResult] - {0}", resultWidget);
+		}
+
+		public override AppResult Marked (string mark)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override AppResult CheckType (Type desiredType)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override AppResult Text (string text, bool exact)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override AppResult Model (string column)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override AppResult Property (string propertyName, object value)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override System.Collections.Generic.List<AppResult> NextSiblings ()
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool Select ()
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool Click ()
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool TypeKey (char key, string state)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool Toggle (bool active)
+		{
+			throw new NotImplementedException ();
 		}
 	}
 }
