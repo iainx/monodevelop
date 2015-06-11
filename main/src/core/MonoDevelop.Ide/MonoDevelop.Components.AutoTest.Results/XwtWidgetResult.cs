@@ -63,11 +63,6 @@ namespace MonoDevelop.Components.AutoTest.Results
 			throw new NotImplementedException ();
 		}
 
-		public override AppResult Property (string propertyName, object value)
-		{
-			throw new NotImplementedException ();
-		}
-
 		public override System.Collections.Generic.List<AppResult> NextSiblings ()
 		{
 			throw new NotImplementedException ();
@@ -84,6 +79,16 @@ namespace MonoDevelop.Components.AutoTest.Results
 		}
 
 		public override bool TypeKey (char key, string state)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool TypeKey (string keyString, string state = "")
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool EnterText (string text)
 		{
 			throw new NotImplementedException ();
 		}

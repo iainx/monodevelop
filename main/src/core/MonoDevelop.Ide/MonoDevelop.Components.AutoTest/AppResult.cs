@@ -25,13 +25,13 @@
 // THE SOFTWARE.
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace MonoDevelop.Components.AutoTest
 {
 	public abstract class AppResult : MarshalByRefObject
 	{
-		//public Gtk.Widget ResultWidget { get; private set; }
+		protected object ResultObject;
 
 		public AppResult ParentNode { get; set; }
 		public AppResult FirstChild { get; set; }
@@ -43,7 +43,27 @@ namespace MonoDevelop.Components.AutoTest
 		public abstract AppResult CheckType (Type desiredType);
 		public abstract AppResult Text (string text, bool exact);
 		public abstract AppResult Model (string column);
-		public abstract AppResult Property (string propertyName, object value);
+
+		object GetPropertyValue (string propertyName)
+		{
+			return AutoTestService.CurrentSession.UnsafeSync (delegate {
+				PropertyInfo propertyInfo = ResultObject.GetType().GetProperty(propertyName);
+				if (propertyInfo != null) {
+					var propertyValue = propertyInfo.GetValue (ResultObject);
+					if (propertyValue != null) {
+						return propertyValue;
+					}
+				}
+
+				return null;
+			});
+		}
+
+		public virtual AppResult Property (string propertyName, object value)
+		{
+			return (GetPropertyValue (propertyName) == value) ? this : null;
+		}
+
 		public abstract List<AppResult> NextSiblings ();
 
 		// Actions

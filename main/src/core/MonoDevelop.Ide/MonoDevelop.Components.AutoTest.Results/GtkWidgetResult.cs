@@ -39,6 +39,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 		public GtkWidgetResult (Widget widget)
 		{
 			resultWidget = widget;
+			ResultObject = widget;
 		}
 
 		public override string ToString ()

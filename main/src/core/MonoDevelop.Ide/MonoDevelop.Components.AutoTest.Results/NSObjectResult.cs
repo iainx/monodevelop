@@ -34,21 +34,21 @@ namespace MonoDevelop.Components.AutoTest.Results
 {
 	public class NSObjectResult : AppResult
 	{
-		NSObject ResultObject;
+		NSObject resultObject;
 
 		public NSObjectResult (NSObject resultObject)
 		{
-			ResultObject = resultObject;
+			this.resultObject = resultObject;
 		}
 
 		public override AppResult Marked (string mark)
 		{
-			if (ResultObject is NSView) {
-				if (((NSView)ResultObject).Identifier == mark) {
+			if (resultObject is NSView) {
+				if (((NSView) resultObject).Identifier == mark) {
 					return this;
 				}
 
-				if (ResultObject.GetType ().FullName == mark) {
+				if (resultObject.GetType ().FullName == mark) {
 					return this;
 				}
 			}
@@ -57,7 +57,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override AppResult CheckType (Type desiredType)
 		{
-			if (ResultObject.GetType () == desiredType || ResultObject.GetType ().IsSubclassOf (desiredType)) {
+			if (resultObject.GetType () == desiredType || resultObject.GetType ().IsSubclassOf (desiredType)) {
 				return this;
 			}
 
@@ -67,7 +67,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 		bool CheckForText (string haystack, string needle, bool exact)
 		{
 			if (exact) {
-				return haystack == needle;
+				return haystack == needle;	
 			} else {
 				return (haystack.IndexOf (needle) > -1);
 			}
@@ -75,8 +75,8 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override AppResult Text (string text, bool exact)
 		{
-			if (ResultObject is NSControl) {
-				NSControl control = (NSControl)ResultObject;
+			if (resultObject is NSControl) {
+				NSControl control = (NSControl) resultObject;
 				string value = control.StringValue;
 				if (CheckForText (value, text, exact)) {
 					return this;
@@ -91,25 +91,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 			return null;
 		}
 
-		object GetPropertyValue (string propertyName)
-		{
-			return AutoTestService.CurrentSession.UnsafeSync (delegate {
-				PropertyInfo propertyInfo = ResultObject.GetType().GetProperty(propertyName);
-				if (propertyInfo != null) {
-					var propertyValue = propertyInfo.GetValue (ResultObject);
-					if (propertyValue != null) {
-						return propertyValue;
-					}
-				}
 
-				return null;
-			});
-		}
-
-		public override AppResult Property (string propertyName, object value)
-		{
-			return (GetPropertyValue (propertyName) == value) ? this : null;
-		}
 
 		public override List<AppResult> NextSiblings ()
 		{
@@ -123,7 +105,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override bool Click ()
 		{
-			NSControl control = ResultObject as NSControl;
+			NSControl control = resultObject as NSControl;
 			if (control == null) {
 				return false;
 			}
@@ -155,7 +137,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override bool EnterText (string text)
 		{
-			NSControl control = ResultObject as NSControl;
+			NSControl control = resultObject as NSControl;
 			if (control == null) {
 				return false;
 			}
@@ -181,7 +163,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override bool Toggle (bool active)
 		{
-			NSButton button = ResultObject as NSButton;
+			NSButton button = resultObject as NSButton;
 			if (button == null) {
 				return false;
 			}

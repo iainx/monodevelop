@@ -54,17 +54,17 @@ namespace MonoDevelop.Components.AutoTest.Results
 			
 		public override AppResult Marked (string mark)
 		{
-			return null;
+			throw new NotImplementedException ();
 		}
 
 		public override AppResult CheckType (Type desiredType)
 		{
-			return null;
+			throw new NotImplementedException ();
 		}
 
 		public override AppResult Model (string column)
 		{
-			return null;
+			throw new NotImplementedException ();
 		}
 
 		bool CheckForText (TreeModel model, TreeIter iter, bool exact)
@@ -192,7 +192,7 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override bool TypeKey (char key, string state = "")
 		{
-			return false;
+			throw new NotImplementedException ();
 		}
 
 		public override bool TypeKey (string keyString, string state = "")
@@ -202,12 +202,12 @@ namespace MonoDevelop.Components.AutoTest.Results
 
 		public override bool EnterText (string text)
 		{
-			return false;
+			throw new NotImplementedException ();
 		}
 
 		public override bool Toggle (bool active)
 		{
-			return false;
+			throw new NotImplementedException ();
 		}
 	}
 }
