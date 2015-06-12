@@ -32,6 +32,7 @@ using MonoDevelop.Components.AutoTest.Results;
 using System.Linq;
 
 using Xwt;
+using Xwt.GtkBackend;
 
 #if MAC
 using AppKit;
@@ -51,7 +52,17 @@ namespace MonoDevelop.Components.AutoTest
 			AppResult firstChild = null, lastChild = null;
 
 			foreach (var child in container.Children) {
-				AppResult node = new GtkWidgetResult (child) { SourceQuery = ToString () };
+				AppResult node;
+
+				if (child is Gtk.Widget) {
+					node = new GtkWidgetResult (child) { SourceQuery = ToString () };
+					if (child is Gtk.Container) {
+						AppResult children = GenerateChildrenForContainer ((Gtk.Container)child, resultSet);
+						node.FirstChild = children;
+					}
+				} else if (child is ) {
+					node = new XwtWidgetResult (child) { SourceQuery = ToString () };
+				}
 				resultSet.Add (node);
 
 				// FIXME: Do we need to recreate the tree structure of the AppResults?
@@ -62,11 +73,6 @@ namespace MonoDevelop.Components.AutoTest
 					lastChild.NextSibling = node;
 					node.PreviousSibling = lastChild;
 					lastChild = node;
-				}
-
-				if (child is Gtk.Container) {
-					AppResult children = GenerateChildrenForContainer ((Gtk.Container)child, resultSet);
-					node.FirstChild = children;
 				}
 			}
 
