@@ -52,7 +52,7 @@ namespace MonoDevelop.Components.AutoTest
 			AppResult firstChild = null, lastChild = null;
 
 			foreach (var child in container.Children) {
-				AppResult node;
+				AppResult node = null;
 
 				if (child is Gtk.Widget) {
 					node = new GtkWidgetResult (child) { SourceQuery = ToString () };
@@ -60,9 +60,9 @@ namespace MonoDevelop.Components.AutoTest
 						AppResult children = GenerateChildrenForContainer ((Gtk.Container)child, resultSet);
 						node.FirstChild = children;
 					}
-				} else if (child is ) {
+				} /*else if (child is ) {
 					node = new XwtWidgetResult (child) { SourceQuery = ToString () };
-				}
+				}*/
 				resultSet.Add (node);
 
 				// FIXME: Do we need to recreate the tree structure of the AppResults?
