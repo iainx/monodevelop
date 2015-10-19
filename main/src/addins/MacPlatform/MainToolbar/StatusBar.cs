@@ -216,11 +216,16 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 			AddSubview (textField);
 		}
 
+		public override CGSize IntrinsicContentSize {
+			get {
+				return new CGSize (400, 22);
+			}
+		}
 		public override void DrawRect (CGRect dirtyRect)
 		{
-			if (imageView.Frame.Location == CGPoint.Empty)
+			//if (imageView.Frame.Location == CGPoint.Empty)
 				imageView.Frame = new CGRect (6, 0, 16, Frame.Height);
-			if (textField.Frame.Location == CGPoint.Empty)
+			//if (textField.Frame.Location == CGPoint.Empty)
 				textField.Frame = new CGRect (imageView.Frame.Right, 0, Frame.Width - 16, Frame.Height);
 
 			base.DrawRect (dirtyRect);

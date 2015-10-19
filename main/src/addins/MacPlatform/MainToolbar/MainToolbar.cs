@@ -50,34 +50,37 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 		internal NSToolbar widget;
 		internal Gtk.Window gtkWindow;
 
+		AwesomeBar awesomeBar;
+
 		int runButtonIdx;
 		RunButton runButton {
-			get { return (RunButton)widget.Items[runButtonIdx].View; }
+			get { return awesomeBar.RunButton;/*(RunButton)widget.Items[runButtonIdx].View;*/ }
 		}
 
 		int buttonBarStartIdx, buttonBarCount;
 
+		/*
 		CenteringSpaceToolbarItem centeringSpace {
 			get { return (CenteringSpaceToolbarItem)widget.Items[buttonBarStartIdx + buttonBarCount]; }
 		}
-
+*/
 		int statusBarIdx;
 		StatusBar statusBar {
-			get { return (StatusBar)widget.Items[statusBarIdx + buttonBarCount].View; }
+			get { return awesomeBar.StatusBar;/*(StatusBar)widget.Items[statusBarIdx + buttonBarCount].View;*/ }
 		}
 
 		int selectorIdx;
 		SelectorView selector {
-			get { return (SelectorView)widget.Items[selectorIdx].View; }
+			get { return awesomeBar.SelectorView;/*(SelectorView)widget.Items[selectorIdx].View;*/ }
 		}
-
+			
 		SelectorView.PathSelectorView selectorView {
-			get { return (SelectorView.PathSelectorView)widget.Items[selectorIdx].View.Subviews [0]; }
+			get { return (SelectorView.PathSelectorView)awesomeBar.SelectorView.Subviews[0];/*(SelectorView.PathSelectorView)widget.Items[selectorIdx].View.Subviews [0];*/ }
 		}
 
 		int searchEntryIdx;
 		SearchBar searchEntry {
-			get { return (SearchBar)widget.Items[searchEntryIdx + buttonBarCount].View; }
+			get { return awesomeBar.SearchBar;/*(SearchBar)widget.Items[searchEntryIdx + buttonBarCount].View;*/ }
 		}
 
 		// TODO: Remove this when XamMac 2.2 goes stable.
@@ -132,6 +135,7 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 
 		NSToolbarItem CreateSelectorToolbarItem ()
 		{
+			/*
 			var selector = new SelectorView ();
 			viewCache.Add (selector);
 			var item = new NSToolbarItem (SelectorId) {
@@ -191,10 +195,13 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 					RuntimeChanged (sender, ea);
 			};
 			return item;
+			*/
+			return null;
 		}
 
 		NSToolbarItem CreateButtonBarToolbarItem ()
 		{
+			/*
 			var bar = new ButtonBar (barItems);
 			buttonBarCache.Add (bar);
 
@@ -218,6 +225,8 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 				centeringSpace.UpdateWidth ();
 			};
 			return item;
+			*/
+			return null;
 		}
 
 		void AttachToolbarEvents (SearchBar bar)
@@ -309,6 +318,58 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 			widget = new NSToolbar (MainToolbarId) {
 				DisplayMode = NSToolbarDisplayMode.Icon,
 			};
+
+			awesomeBar = new AwesomeBar ();
+			widget.WillInsertItem = (tool, id, send) => {
+				switch (id) {
+				case StatusBarId:
+					return new NSToolbarItem (StatusBarId) {
+						View = awesomeBar,
+						MinSize = new CGSize (1024, 25),
+						MaxSize = new CGSize (1024, 25)
+					};
+
+				default:
+					throw new NotImplementedException ();
+				}
+			};
+
+			Action<NSNotification> resizeAction = notif => DispatchService.GuiDispatch (() => {
+			/*
+				// Skip updates with a null Window. Only crashes on Mavericks.
+				// The View gets updated once again when the window resize finishes.
+				if (bar.Window == null)
+					return;
+
+				// We're getting notified about all windows in the application (for example, NSPopovers) that change size when really we only care about
+				// the window the bar is in.
+				if (notif.Object != bar.Window)
+					return;
+
+				double maxSize = Math.Round (bar.Window.Frame.Width * 0.30f);
+				double minSize = Math.Round (bar.Window.Frame.Width * 0.25f);
+				item.MinSize = new CGSize ((nfloat)Math.Max (220, minSize), 22);
+				item.MaxSize = new CGSize ((nfloat)Math.Min (700, maxSize), 22);
+				bar.RepositionStatusLayers ();
+				*/
+				var win = awesomeBar.Window;
+				if (win == null) {
+					Console.WriteLine ("No window yet");
+					return;
+				}
+
+				Console.WriteLine ("Window size: {0}, awesomebar: {1} - {2}", win.Frame, awesomeBar.Frame, awesomeBar.ConvertRectToView (awesomeBar.Frame, null));
+				var item = widget.Items[0];
+
+				var abFrameInWindow = awesomeBar.ConvertRectToView (awesomeBar.Frame, null);
+				var size = new CGSize (win.Frame.Width - abFrameInWindow.X - 4, 25);
+				item.MinSize = size;
+				item.MaxSize = size;
+			});
+
+			NSNotificationCenter.DefaultCenter.AddObserver (NSWindow.DidResizeNotification, resizeAction);
+			NSNotificationCenter.DefaultCenter.AddObserver (NSWindow.DidEndLiveResizeNotification, resizeAction);
+			/*
 			widget.WillInsertItem = (tool, id, send) => {
 				switch (id) {
 				case RunButtonId:
@@ -326,10 +387,13 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 				}
 				throw new NotImplementedException ();
 			};
+			*/
 		}
 
 		internal void Initialize ()
 		{
+			widget.InsertItem (StatusBarId, 0);
+			/*
 			int total = -1;
 			widget.InsertItem (RunButtonId, runButtonIdx = ++total);
 			widget.InsertItem (SelectorId, selectorIdx = ++total);
@@ -340,6 +404,7 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 
 			// NSButton -> NSToolbarItemViewer -> _NSToolbarClipView -> NSToolbarView -> NSToolbarClippedItemsIndicator
 			viewCache.Add (runButton.Superview.Superview.Superview);
+			*/
 		}
 
 		#region IMainToolbarView implementation
@@ -390,8 +455,8 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 		}
 
 		public bool ConfigurationPlatformSensitivity {
-			get { return selectorView.Enabled; }
-			set { selectorView.Enabled = value; }
+			get { return /*selectorView.Enabled;*/true; }
+			set { /*selectorView.Enabled = value;*/ }
 		}
 
 		public event EventHandler ConfigurationChanged;
