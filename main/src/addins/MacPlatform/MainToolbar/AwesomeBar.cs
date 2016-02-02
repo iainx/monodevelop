@@ -28,6 +28,8 @@ using AppKit;
 using Foundation;
 using CoreGraphics;
 
+using MonoDevelop.Core;
+
 namespace MonoDevelop.MacIntegration.MainToolbar
 {
 	public class AwesomeBar : NSView
@@ -81,6 +83,11 @@ namespace MonoDevelop.MacIntegration.MainToolbar
 			StatusBar.Frame = new CGRect (Math.Round ((Frame.Width - statusbarWidth) / 2), 0, statusbarWidth, ToolbarWidgetHeight);
 			nfloat searchBarYOffset = 0;
 			nfloat searchBarHeightDelta = -2;
+
+			if (MacSystemInformation.OsVersion >= MacSystemInformation.ElCapitan) {
+				searchBarYOffset = 0;
+				searchBarHeightDelta = 0;
+			}
 
 			SearchBar.Frame = new CGRect (Frame.Width - searchbarWidth - 10, 0 + searchBarYOffset, searchbarWidth, ToolbarWidgetHeight + searchBarHeightDelta);
 
