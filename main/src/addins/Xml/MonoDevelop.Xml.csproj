@@ -18,6 +18,7 @@
     <OutputPath>..\..\..\build\AddIns\Xml</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ExecuteAfterBuild>postbuild.sh</ExecuteAfterBuild>
     <ConsolePause>False</ConsolePause>
     <Execution>
