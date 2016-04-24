@@ -161,10 +161,10 @@ namespace MonoDevelop.ChangeLogAddIn
 				return null;
 			
 			if (File.Exists (clog))
-				return await IdeApp.Workbench.OpenDocument (clog, OpenDocumentOptions.Default | OpenDocumentOptions.OnlyInternalViewer);
+				return await IdeApp.Workbench.OpenDocument (clog, project, OpenDocumentOptions.Default | OpenDocumentOptions.OnlyInternalViewer);
 			
 			Document document = IdeApp.Workbench.NewDocument (clog, "text/plain", "");
-			document.Save();
+			await document.Save ();
 			return document;				
 		}
 	}
