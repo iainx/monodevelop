@@ -54,6 +54,7 @@ using ObjCRuntime;
 using System.Diagnostics;
 using Xwt.Mac;
 using MonoDevelop.Components.Mac;
+using System.Reflection;
 
 namespace MonoDevelop.MacIntegration
 {
@@ -999,6 +1000,18 @@ namespace MonoDevelop.MacIntegration
 
 			proc.StartInfo = psi;
 			proc.Start ();
+		}
+
+		internal override T CreateNativeImplementation<T> (params object[] p)
+		{
+			var assembly = Assembly.GetExecutingAssembly ();
+			foreach (var type in assembly.GetTypes ()) {
+				if (type != typeof (T) && typeof (T).IsAssignableFrom (type)) {
+					return (T)Activator.CreateInstance (type, p);
+				}
+			}
+
+			throw new NotImplementedException ($"No class implements {typeof (T)}");
 		}
 	}
 

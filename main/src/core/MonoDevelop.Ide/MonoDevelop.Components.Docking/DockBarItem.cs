@@ -116,37 +116,198 @@ namespace MonoDevelop.Components.Docking
 		}
 	}
 
-	class DockBarItem: EventBox, IAnimatable
+	class DockBarItem
 	{
-		DockBar bar;
-		DockItem it;
+		internal DockBar Bar { get; set; }
+		public DockItem Item { get; set; }
+		internal int Size { get; set; }
+
+		internal IDockBarItemControl Control { get; private set; }
+		uint autoShowTimeout = uint.MaxValue;
+		uint autoHideTimeout = uint.MaxValue;
+
+		public DockBarItem (DockBar bar, DockItem item, int size)
+		{
+			Bar = bar;
+			Item = item;
+			Size = size;
+
+			Control = new DockBarItemControl ();
+			Control.Initialize (this);
+		}
+
+		public void Close ()
+		{
+			UnscheduleAutoShow ();
+			UnscheduleAutoHide ();
+			AutoHide (false);
+			Bar.RemoveItem (this);
+			Control.Close ();
+		}
+
+		internal void UnscheduleAutoShow ()
+		{
+			if (autoShowTimeout != uint.MaxValue) {
+				GLib.Source.Remove (autoShowTimeout);
+				autoShowTimeout = uint.MaxValue;
+			}
+		}
+
+		internal void UnscheduleAutoHide ()
+		{
+			if (autoHideTimeout != uint.MaxValue) {
+				GLib.Source.Remove (autoHideTimeout);
+				autoHideTimeout = uint.MaxValue;
+			}
+		}
+
+		public void Present (bool giveFocus)
+		{
+			AutoShow ();
+			if (giveFocus) {
+				GLib.Timeout.Add (200, delegate {
+					// Using a small delay because AutoShow uses an animation and setting focus may
+					// not work until the item is visible
+					Control.Present ();
+
+					Item.SetFocus ();
+					ScheduleAutoHide (false);
+					return false;
+				});
+			}
+		}
+
+		public void Minimize ()
+		{
+			AutoHide (false);
+		}
+
+		internal void AutoShow ()
+		{
+			UnscheduleAutoHide ();
+			Control.AutoShow ();
+		}
+
+		internal void AutoHide (bool animate)
+		{
+			UnscheduleAutoShow ();
+			Control.AutoHide (animate);
+		}
+
+		internal void ScheduleAutoShow ()
+		{
+			UnscheduleAutoHide ();
+			if (autoShowTimeout == uint.MaxValue) {
+				autoShowTimeout = GLib.Timeout.Add (Bar.Frame.AutoShowDelay, delegate {
+					autoShowTimeout = uint.MaxValue;
+					AutoShow ();
+					return false;
+				});
+			}
+		}
+
+		internal void ScheduleAutoHide (bool cancelAutoShow)
+		{
+			ScheduleAutoHide (cancelAutoShow, false);
+		}
+
+		internal void ScheduleAutoHide (bool cancelAutoShow, bool force)
+		{
+			if (cancelAutoShow)
+				UnscheduleAutoShow ();
+			if (force)
+				Item.ClearFocus ();
+
+			if (autoHideTimeout == uint.MaxValue) {
+				autoHideTimeout = GLib.Timeout.Add (force ? 0 : Bar.Frame.AutoHideDelay, delegate {
+					// Don't hide if the context menu for the item is being shown.
+					if (Item.ShowingContextMenu)
+						return true;
+					// Don't hide the item if it has the focus. Try again later.
+					if (Item.HasFocusedChild && !force && Control.AutoShowWindowHasFocus)
+						return true;
+					// Don't hide the item if the mouse pointer is still inside the window. Try again later.
+					if (Item.ContainsPointer && !force)
+						return true;
+					autoHideTimeout = uint.MaxValue;
+					AutoHide (true);
+					return false;
+				});
+			}
+		}
+
+		public void UpdateTab ()
+		{
+			Control.UpdateTab ();
+		}
+
+		public void Show ()
+		{
+			Control.Show ();
+		}
+
+		public void Hide ()
+		{
+			Control.Hide ();
+		}
+	}
+
+	internal interface IDockBarItemControl : IAnimatable
+	{
+		void Initialize (DockBarItem parentItem);
+		void Close ();
+		void Present ();
+		void AutoShow ();
+		void AutoHide (bool animate);
+		void UpdateTab ();
+
+		bool AutoShowWindowHasFocus { get; }
+		DockBarItem ParentItem { get; }
+
+		void Show ();
+		event EventHandler Shown;
+		void Hide ();
+		event EventHandler Hidden;
+	}
+
+	class DockBarItemControl: EventBox, IDockBarItemControl
+	{
+		DockBarItem parentItem;
 		Box box;
 		Label label;
 		Alignment mainBox;
 		AutoHideBox autoShowFrame;
 		AutoHideBox hiddenFrame;
-		uint autoShowTimeout = uint.MaxValue;
-		uint autoHideTimeout = uint.MaxValue;
-		int size;
+
+
 		Gdk.Size lastFrameSize;
 		MouseTracker tracker;
 		CrossfadeIcon crossfade;
 		double hoverProgress;
 
-		public DockBarItem (DockBar bar, DockItem it, int size)
+		public DockBarItemControl ()
 		{
 			var actionHandler = new ActionDelegate (this);
 			actionHandler.PerformPress += OnPerformPress;
 
 			Events = Events | Gdk.EventMask.EnterNotifyMask | Gdk.EventMask.LeaveNotifyMask;
-			this.size = size;
-			this.bar = bar;
-			this.it = it;
 			CanFocus = true;
 			VisibleWindow = false;
+		}
+
+		public void Initialize (DockBarItem parentItem)
+		{
+			this.parentItem = parentItem;
+
 			UpdateTab ();
-			lastFrameSize = bar.Frame.Allocation.Size;
-			bar.Frame.SizeAllocated += HandleBarFrameSizeAllocated;
+
+			var widgetControl = parentItem.Bar.Frame.Control as Widget;
+			if (widgetControl != null) {
+				lastFrameSize = widgetControl.Allocation.Size;
+				widgetControl.SizeAllocated += HandleBarFrameSizeAllocated;
+			} else {
+				LoggingService.LogWarning ("Toolkit mismatch");
+			}
 
 			tracker = new MouseTracker (this);
 			tracker.TrackMotion = false;
@@ -168,6 +329,73 @@ namespace MonoDevelop.Components.Docking
 			Accessible.Role = Atk.Role.PushButton;
 		}
 
+		public DockBarItem ParentItem {
+			get {
+				return parentItem;
+			}
+		}
+
+		public void Close ()
+		{
+			Destroy ();
+		}
+
+		public void Present ()
+		{
+			var control = autoShowFrame.Control as DockFrameTopLevelControl;
+			if (autoShowFrame != null && control.ContainerWindow != null && control.ContainerWindow != (Gtk.Window)Toplevel)
+				control.ContainerWindow.Present ();
+		}
+
+		public void AutoShow ()
+		{
+			var bar = parentItem.Bar;
+			var it = parentItem.Item;
+
+			if (autoShowFrame == null && !bar.Frame.Control.OverlayWidgetVisible) {
+				if (hiddenFrame != null)
+					bar.Frame.Control.AutoHide (it, hiddenFrame, false);
+				autoShowFrame = bar.Frame.Control.AutoShow (it, bar, parentItem.Size);
+				if (!string.IsNullOrEmpty (it.Label)) {
+					autoShowFrame.Title = it.Label;
+				}
+
+				var control = autoShowFrame.Control as DockFrameTopLevelControl;
+				control.EnterNotifyEvent += OnFrameEnter;
+				control.LeaveNotifyEvent += OnFrameLeave;
+				control.KeyPressEvent += OnFrameKeyPress;
+				QueueDraw ();
+			}
+		}
+
+		public void AutoHide (bool animate)
+		{
+			var bar = parentItem.Bar;
+			var it = parentItem.Item;
+
+			if (autoShowFrame != null) {
+				var control = autoShowFrame.Control as DockFrameTopLevelControl;
+
+				parentItem.Size = autoShowFrame.PadSize;
+				hiddenFrame = autoShowFrame;
+				control.Hidden += delegate {
+					hiddenFrame = null;
+				};
+				bar.Frame.Control.AutoHide (it, autoShowFrame, animate);
+				control.EnterNotifyEvent -= OnFrameEnter;
+				control.LeaveNotifyEvent -= OnFrameLeave;
+				control.KeyPressEvent -= OnFrameKeyPress;
+				autoShowFrame = null;
+				QueueDraw ();
+			}
+		}
+
+		public bool AutoShowWindowHasFocus {
+			get {
+				return autoShowFrame != null && autoShowFrame.HasToplevelFocus;
+			}
+		}
+
 		void IAnimatable.BatchBegin () { }
 		void IAnimatable.BatchCommit () { QueueDraw (); }
 
@@ -185,9 +413,9 @@ namespace MonoDevelop.Components.Docking
 			if (!lastFrameSize.Equals (args.Allocation.Size)) {
 				lastFrameSize = args.Allocation.Size;
 				if (autoShowFrame != null)
-					bar.Frame.UpdateSize (bar, autoShowFrame);
+					parentItem.Bar.Frame.Control.UpdateSize (parentItem.Bar, autoShowFrame);
 
-				UnscheduleAutoHide ();
+				parentItem.UnscheduleAutoHide ();
 				AutoHide (false);
 			}
 		}
@@ -196,27 +424,20 @@ namespace MonoDevelop.Components.Docking
 		{
 			this.AbortAnimation ("Hover");
 			base.OnDestroyed ();
-			bar.Frame.SizeAllocated -= HandleBarFrameSizeAllocated;
+			var widgetControl = parentItem.Bar.Frame.Control as Widget;
+			if (widgetControl != null) {
+				widgetControl.SizeAllocated -= HandleBarFrameSizeAllocated;
+			} else {
+				LoggingService.LogWarning ("Toolkit mismatch");
+			}
 			Ide.Gui.Styles.Changed -= UpdateStyle;
-		}
-		
-		
-		public void Close ()
-		{
-			UnscheduleAutoShow ();
-			UnscheduleAutoHide ();
-			AutoHide (false);
-			bar.RemoveItem (this);
-			Destroy ();
-		}
-
-		public int Size {
-			get { return size; }
-			set { size = value; }
 		}
 		
 		public void UpdateTab ()
 		{
+			var bar = parentItem.Bar;
+			var it = parentItem.Item;
+
 			if (Child != null) {
 				Widget w = Child;
 				Remove (w);
@@ -291,146 +512,20 @@ namespace MonoDevelop.Components.Docking
 			if (label != null)
 				label.ModifyFg (StateType.Normal, Styles.DockBarLabelColor.ToGdkColor ());
 		}
-		
-		public MonoDevelop.Components.Docking.DockItem DockItem {
-			get {
-				return it;
-			}
-		}
 
 		protected override void OnHidden ()
 		{
 			base.OnHidden ();
-			UnscheduleAutoShow ();
-			UnscheduleAutoHide ();
-			AutoHide (false);
-		}
-
-		public void Present (bool giveFocus)
-		{
-			AutoShow ();
-			if (giveFocus) {
-				GLib.Timeout.Add (200, delegate {
-					// Using a small delay because AutoShow uses an animation and setting focus may
-					// not work until the item is visible
-					if (autoShowFrame != null && autoShowFrame.ContainerWindow != null && autoShowFrame.ContainerWindow != (Gtk.Window)Toplevel)
-						autoShowFrame.ContainerWindow.Present ();
-					it.SetFocus ();
-					ScheduleAutoHide (false);
-					return false;
-				});
-			}
-		}
-
-		public void Minimize ()
-		{
-			AutoHide (false);
-		}
-
-		void AutoShow ()
-		{
-			UnscheduleAutoHide ();
-			if (autoShowFrame == null && !bar.Frame.OverlayWidgetVisible) {
-				if (hiddenFrame != null)
-					bar.Frame.AutoHide (it, hiddenFrame, false);
-				autoShowFrame = bar.Frame.AutoShow (it, bar, size);
-				if (!string.IsNullOrEmpty (it.Label)) {
-					autoShowFrame.Title = it.Label;
-				}
-				autoShowFrame.EnterNotifyEvent += OnFrameEnter;
-				autoShowFrame.LeaveNotifyEvent += OnFrameLeave;
-				autoShowFrame.KeyPressEvent += OnFrameKeyPress;
-				QueueDraw ();
-			}
-		}
-		
-		void AutoHide (bool animate)
-		{
-			UnscheduleAutoShow ();
-			if (autoShowFrame != null) {
-				size = autoShowFrame.PadSize;
-				hiddenFrame = autoShowFrame;
-				autoShowFrame.Hidden += delegate {
-					hiddenFrame = null;
-				};
-				bar.Frame.AutoHide (it, autoShowFrame, animate);
-				autoShowFrame.EnterNotifyEvent -= OnFrameEnter;
-				autoShowFrame.LeaveNotifyEvent -= OnFrameLeave;
-				autoShowFrame.KeyPressEvent -= OnFrameKeyPress;
-				autoShowFrame = null;
-				QueueDraw ();
-			}
-		}
-		
-		void ScheduleAutoShow ()
-		{
-			UnscheduleAutoHide ();
-			if (autoShowTimeout == uint.MaxValue) {
-				autoShowTimeout = GLib.Timeout.Add (bar.Frame.AutoShowDelay, delegate {
-					autoShowTimeout = uint.MaxValue;
-					AutoShow ();
-					return false;
-				});
-			}
-		}
-		
-		void ScheduleAutoHide (bool cancelAutoShow)
-		{
-			ScheduleAutoHide (cancelAutoShow, false);
-		}
-		
-		void ScheduleAutoHide (bool cancelAutoShow, bool force)
-		{
-			if (cancelAutoShow)
-				UnscheduleAutoShow ();
-			if (force)
-				it.Widget.FocusChild = null;
-			if (autoHideTimeout == uint.MaxValue) {
-				autoHideTimeout = GLib.Timeout.Add (force ? 0 : bar.Frame.AutoHideDelay, delegate {
-					// Don't hide if the context menu for the item is being shown.
-					if (it.ShowingContextMenu)
-						return true;
-					if (!force) {
-						// Don't hide the item if it has the focus. Try again later.
-						if (it.Widget.FocusChild != null && autoShowFrame != null && ((Gtk.Window)autoShowFrame.Toplevel).HasToplevelFocus)
-							return true;
-						// Don't hide the item if the mouse pointer is still inside the window. Try again later.
-						int px, py;
-						it.Widget.GetPointer (out px, out py);
-						if (it.Widget.Visible && it.Widget.IsRealized && it.Widget.Allocation.Contains (px + it.Widget.Allocation.X, py + it.Widget.Allocation.Y))
-							return true;
-						// Don't hide if the mouse pointer is still inside the DockBar item
-						GetPointer (out px, out py);
-						if (Allocation.Contains (px + Allocation.X, py + Allocation.Y))
-							return true;
-					}
-					autoHideTimeout = uint.MaxValue;
-					AutoHide (true);
-					return false;
-				});
-			}
-		}
-		
-		void UnscheduleAutoShow ()
-		{
-			if (autoShowTimeout != uint.MaxValue) {
-				GLib.Source.Remove (autoShowTimeout);
-				autoShowTimeout = uint.MaxValue;
-			}
-		}
-		
-		void UnscheduleAutoHide ()
-		{
-			if (autoHideTimeout != uint.MaxValue) {
-				GLib.Source.Remove (autoHideTimeout);
-				autoHideTimeout = uint.MaxValue;
-			}
+			parentItem.UnscheduleAutoShow ();
+			parentItem.UnscheduleAutoHide ();
+			parentItem.AutoHide (false);
 		}
 		
 		protected override bool OnEnterNotifyEvent (Gdk.EventCrossing evnt)
 		{
+			var bar = parentItem.Bar;
 			if (bar.HoverActivationEnabled && autoShowFrame == null) {
-				ScheduleAutoShow ();
+				parentItem.ScheduleAutoShow ();
 				QueueDraw ();
 			}
 			return base.OnEnterNotifyEvent (evnt);
@@ -439,15 +534,15 @@ namespace MonoDevelop.Components.Docking
 		void OnPerformPress (object sender, EventArgs args)
 		{
 			if (autoShowFrame == null) {
-				AutoShow ();
+				parentItem.AutoShow ();
 			} else {
-				AutoHide (false);
+				parentItem.AutoHide (false);
 			}
 		}
 		
 		protected override bool OnLeaveNotifyEvent (Gdk.EventCrossing evnt)
 		{
-			ScheduleAutoHide (true);
+			parentItem.ScheduleAutoHide (true);
 			if (autoShowFrame == null) {
 				QueueDraw ();
 			}
@@ -462,20 +557,23 @@ namespace MonoDevelop.Components.Docking
 		void OnFrameKeyPress (object s, Gtk.KeyPressEventArgs args)
 		{
 			if (args.Event.Key == Gdk.Key.Escape)
-				ScheduleAutoHide (true, true);
+				parentItem.ScheduleAutoHide (true, true);
 		}
 		
 		void OnFrameLeave (object s, Gtk.LeaveNotifyEventArgs args)
 		{
 			if (args.Event.Detail != Gdk.NotifyType.Inferior)
-				ScheduleAutoHide (true);
+				parentItem.ScheduleAutoHide (true);
 		}
 
 		bool itemActivated;
 
 		protected override bool OnButtonPressEvent (Gdk.EventButton evnt)
 		{
-			if (bar.Frame.OverlayWidgetVisible)
+			var bar = parentItem.Bar;
+			var it = parentItem.Item;
+
+			if (bar.Frame.Control.OverlayWidgetVisible)
 				return false;
 			if (evnt.TriggersContextMenu ()) {
 				it.ShowDockPopupMenu (this, evnt);
@@ -498,13 +596,14 @@ namespace MonoDevelop.Components.Docking
 		{
 			if (itemActivated) {
 				itemActivated = false;
-				it.Status = DockItemStatus.Dockable;
+				parentItem.Item.Status = DockItemStatus.Dockable;
 			}
 			return true;
 		}
 
 		protected override bool OnExposeEvent (Gdk.EventExpose evnt)
 		{
+			var bar = parentItem.Bar;
 			using (var context = Gdk.CairoHelper.Create (evnt.Window)) {
 				var alloc = Allocation;
 
@@ -556,7 +655,7 @@ namespace MonoDevelop.Components.Docking
 
 		protected override void OnActivate ()
 		{
-			AutoShow ();
+			parentItem.AutoShow ();
 		}
 	}
 }

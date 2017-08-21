@@ -394,5 +394,10 @@ namespace MonoDevelop.Ide
 		{
 			PlatformService.RestartIde (reopenWorkspace);
 		}
+
+		internal static T CreateNativeImplementation<T> (params object[] p)
+		{
+			return PlatformService.CreateNativeImplementation<T> (p);
+		}
 	}
 }

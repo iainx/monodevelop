@@ -558,5 +558,10 @@ namespace MonoDevelop.Ide.Desktop
 			proc.StartInfo = psi;
 			proc.Start ();
 		}
+
+		internal virtual T CreateNativeImplementation<T> (params object[] p)
+		{
+			throw new NotImplementedException ();
+		}
 	}
 }

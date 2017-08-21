@@ -38,26 +38,129 @@ using MonoDevelop.Ide.Fonts;
 
 namespace MonoDevelop.Components.Docking
 {
-
-	class DockItemTitleTab : Gtk.EventBox
+	class DockItemTitleTab
 	{
-		static Xwt.Drawing.Image dockTabActiveBackImage = Xwt.Drawing.Image.FromResource ("padbar-active.9.png");
-		static Xwt.Drawing.Image dockTabBackImage = Xwt.Drawing.Image.FromResource ("padbar-inactive.9.png");
+		internal IDockItemTitleTabControl Control { get; set; }
+		internal DockItem Item { get; private set; }
+		internal DockFrame Frame { get; private set; }
+
+		internal static Xwt.Drawing.Image DockTabActiveBackImage = Xwt.Drawing.Image.FromResource ("padbar-active.9.png");
+		internal static Xwt.Drawing.Image DockTabBackImage = Xwt.Drawing.Image.FromResource ("padbar-inactive.9.png");
+
+		internal static Xwt.Drawing.Image PixClose;
+		internal static Xwt.Drawing.Image PixAutoHide;
+		internal static Xwt.Drawing.Image PixDock;
+
+		internal static readonly Xwt.WidgetSpacing TabPadding;
+		internal static readonly Xwt.WidgetSpacing TabActivePadding;
+
+		static DockItemTitleTab ()
+		{
+			PixClose = Xwt.Drawing.Image.FromResource ("pad-close-9.png");
+			PixAutoHide = Xwt.Drawing.Image.FromResource ("pad-minimize-9.png");
+			PixDock = Xwt.Drawing.Image.FromResource ("pad-dock-9.png");
+
+			Xwt.Drawing.NinePatchImage tabBackImage9;
+			if (DockTabBackImage is Xwt.Drawing.ThemedImage) {
+				var img = ((Xwt.Drawing.ThemedImage)DockTabBackImage).GetImage (Xwt.Drawing.Context.GlobalStyles);
+				tabBackImage9 = img as Xwt.Drawing.NinePatchImage;
+			} else
+				tabBackImage9 = DockTabBackImage as Xwt.Drawing.NinePatchImage;
+			TabPadding = tabBackImage9.Padding;
+
+
+			Xwt.Drawing.NinePatchImage tabActiveBackImage9;
+			if (DockTabActiveBackImage is Xwt.Drawing.ThemedImage) {
+				var img = ((Xwt.Drawing.ThemedImage)DockTabActiveBackImage).GetImage (Xwt.Drawing.Context.GlobalStyles);
+				tabActiveBackImage9 = img as Xwt.Drawing.NinePatchImage;
+			} else
+				tabActiveBackImage9 = DockTabActiveBackImage as Xwt.Drawing.NinePatchImage;
+			TabActivePadding = tabActiveBackImage9.Padding;
+		}
+
+		internal DockItemTitleTab (DockItem item, DockFrame frame)
+		{
+			Item = item;
+			Frame = frame;
+
+			Control = new DockItemTitleTabControl ();
+			Control.Initialize (this);
+		}
+
+		internal bool BelongsToTabStrip { get => ParentTabStrip != null; }
+		internal TabStrip ParentTabStrip { get; set; }
+		DockVisualStyle visualStyle;
+		public DockVisualStyle VisualStyle {
+			get { return visualStyle; }
+			set {
+				visualStyle = value;
+				Control.UpdateVisualStyle ();
+				//QueueDraw (); FIXME: Do we need to force a redraw here, we don't redraw any other time we call UpdateVisualStyle
+			}
+		}
+
+		internal double InactiveIconAlpha {
+			get {
+				if (IdeApp.Preferences == null || IdeApp.Preferences.UserInterfaceTheme == Theme.Light)
+					return 0.8;
+				else
+					return 0.6;
+			}
+		}
+
+		public bool Active {
+			get {
+				return Control.Active;
+			}
+			set {
+				Control.Active = value;
+			}
+		}
+
+		public Control Page {
+			get {
+				return Control.Page;
+			}
+		}
+
+		public void RemoveFromParent ()
+		{
+			Control.RemoveFromParent ();
+		}
+	}
+
+	interface IDockItemTitleTabControl
+	{
+		DockItemTitleTab ParentTab { get; }
+		void Initialize (DockItemTitleTab parentTab);
+		void UpdateVisualStyle ();
+		void UpdateBehavior ();
+		bool Active { get; set; }
+		Control Page { get; }
+		event EventHandler<EventArgs> TabPressed;
+		void SetLabel (DockItemContainer container, Xwt.Drawing.Image icon, string label);
+		int MinWidth { get; }
+		int LabelWidth { get; }
+		void ShowAll ();
+		Gdk.Rectangle Size { get; set; }
+		void RemoveFromParent ();
+	}
+
+	class DockItemTitleTabControl : Gtk.EventBox, IDockItemTitleTabControl
+	{
+		DockItemTitleTab parentTab;
 
 		bool active;
-		Gtk.Widget page;
+		Control page;
 		ExtendedLabel labelWidget;
 		int labelWidth;
 		int minWidth;
-		DockVisualStyle visualStyle;
 		ImageView tabIcon;
 		Gtk.HBox box;
-		DockFrame frame;
 		string label;
 		ImageButton btnDock;
 		ImageButton btnClose;
 		Gtk.Alignment al;
-		DockItem item;
 		bool allowPlaceholderDocking;
 		bool mouseOver;
 		Widget currentFocus = null; // Currently focused child
@@ -66,40 +169,9 @@ namespace MonoDevelop.Components.Docking
 
 		static Gdk.Cursor fleurCursor = new Gdk.Cursor (Gdk.CursorType.Fleur);
 
-		static Xwt.Drawing.Image pixClose;
-		static Xwt.Drawing.Image pixAutoHide;
-		static Xwt.Drawing.Image pixDock;
+		public event EventHandler<EventArgs> TabPressed;
 
-		static readonly Xwt.WidgetSpacing TabPadding;
-		static readonly Xwt.WidgetSpacing TabActivePadding;
-
-		internal event EventHandler<EventArgs> TabPressed;
-
-		static DockItemTitleTab ()
-		{
-			pixClose = Xwt.Drawing.Image.FromResource ("pad-close-9.png");
-			pixAutoHide = Xwt.Drawing.Image.FromResource ("pad-minimize-9.png");
-			pixDock = Xwt.Drawing.Image.FromResource ("pad-dock-9.png");
-
-			Xwt.Drawing.NinePatchImage tabBackImage9;
-			if (dockTabBackImage is Xwt.Drawing.ThemedImage) {
-				var img = ((Xwt.Drawing.ThemedImage)dockTabBackImage).GetImage (Xwt.Drawing.Context.GlobalStyles);
-				tabBackImage9 = img as Xwt.Drawing.NinePatchImage;
-			} else
-				tabBackImage9 = dockTabBackImage as Xwt.Drawing.NinePatchImage;
-			TabPadding = tabBackImage9.Padding;
-
-
-			Xwt.Drawing.NinePatchImage tabActiveBackImage9;
-			if (dockTabActiveBackImage is Xwt.Drawing.ThemedImage) {
-				var img = ((Xwt.Drawing.ThemedImage)dockTabActiveBackImage).GetImage (Xwt.Drawing.Context.GlobalStyles);
-				tabActiveBackImage9 = img as Xwt.Drawing.NinePatchImage;
-			} else
-				tabActiveBackImage9 = dockTabActiveBackImage as Xwt.Drawing.NinePatchImage;
-			TabActivePadding = tabActiveBackImage9.Padding;
-		}
-
-		public DockItemTitleTab (DockItem item, DockFrame frame)
+		public DockItemTitleTabControl ()
 		{
 			var actionHandler = new ActionDelegate (this);
 			actionHandler.PerformPress += HandlePress;
@@ -109,12 +181,9 @@ namespace MonoDevelop.Components.Docking
 			Accessible.SetSubRole ("XAPadHeader");
 
 			CanFocus = true;
-			this.item = item;
-			this.frame = frame;
-			this.VisibleWindow = false;
-			UpdateVisualStyle ();
-			NoShowAll = true;
 
+			this.VisibleWindow = false;
+			NoShowAll = true;
 
 			Events |= Gdk.EventMask.EnterNotifyMask | Gdk.EventMask.LeaveNotifyMask | Gdk.EventMask.ButtonPressMask | Gdk.EventMask.ButtonReleaseMask | Gdk.EventMask.PointerMotionMask;
 			KeyPressEvent += HeaderKeyPress;
@@ -123,12 +192,15 @@ namespace MonoDevelop.Components.Docking
 			subscribedLeaveEvent = this.SubscribeLeaveEvent (OnLeave);
 		}
 
-		public DockVisualStyle VisualStyle {
-			get { return visualStyle; }
-			set {
-				visualStyle = value;
-				UpdateVisualStyle ();
-				QueueDraw ();
+		public void Initialize (DockItemTitleTab tab)
+		{
+			parentTab = tab;
+			UpdateVisualStyle ();
+		}
+
+		public DockItemTitleTab ParentTab {
+			get {
+				return parentTab;
 			}
 		}
 
@@ -138,38 +210,33 @@ namespace MonoDevelop.Components.Docking
 			base.OnDestroyed ();
 		}
 
-		void UpdateVisualStyle ()
+		public void UpdateVisualStyle ()
 		{
-			double inactiveIconAlpha;
-
-			if (IdeApp.Preferences == null || IdeApp.Preferences.UserInterfaceTheme == Theme.Light)
-				inactiveIconAlpha = 0.8;
-			else
-				inactiveIconAlpha = 0.6;
 
 			if (labelWidget?.Visible == true && label != null) {
-				if (visualStyle.UppercaseTitles.Value)
+				if (parentTab.VisualStyle.UppercaseTitles.Value)
 					labelWidget.Text = label.ToUpper ();
 				else
 					labelWidget.Text = label;
 				labelWidget.UseMarkup = true;
-				if (visualStyle.ExpandedTabs.Value)
+				if (parentTab.VisualStyle.ExpandedTabs.Value)
 					labelWidget.Xalign = 0.5f;
 
-				if (!(Parent is TabStrip.TabStripBox))
+				if (!parentTab.BelongsToTabStrip) {
 					labelWidget.Xalign = 0;
+				}
 			}
 
 			if (tabIcon != null) {
-				tabIcon.Image = tabIcon.Image.WithAlpha (active ? 1.0 : inactiveIconAlpha);
-				tabIcon.Visible = visualStyle.ShowPadTitleIcon.Value;
+				tabIcon.Image = tabIcon.Image.WithAlpha (active ? 1.0 : parentTab.InactiveIconAlpha);
+				tabIcon.Visible = parentTab.VisualStyle.ShowPadTitleIcon.Value;
 			}
 
 			if (IsRealized && labelWidget?.Visible == true) {
 				var font = FontService.SansFont.CopyModified (null, Pango.Weight.Bold);
 				font.AbsoluteSize = Pango.Units.FromPixels (11);
 				labelWidget.ModifyFont (font);
-				labelWidget.ModifyText (StateType.Normal, (active ? visualStyle.PadTitleLabelColor.Value : visualStyle.InactivePadTitleLabelColor.Value).ToGdkColor ());
+				labelWidget.ModifyText (StateType.Normal, (active ? parentTab.VisualStyle.PadTitleLabelColor.Value : parentTab.VisualStyle.InactivePadTitleLabelColor.Value).ToGdkColor ());
 			}
 
 			var r = WidthRequest;
@@ -177,15 +244,15 @@ namespace MonoDevelop.Components.Docking
 			labelWidth = SizeRequest ().Width + 1;
 			WidthRequest = r;
 
-			if (visualStyle != null)
-				HeightRequest = visualStyle.PadTitleHeight != null ? (int)(visualStyle.PadTitleHeight.Value) : -1;
+			if (parentTab?.VisualStyle != null)
+				HeightRequest = parentTab.VisualStyle.PadTitleHeight != null ? (int)(parentTab.VisualStyle.PadTitleHeight.Value) : -1;
 		}
 
-		public void SetLabel (Gtk.Widget page, Xwt.Drawing.Image icon, string label)
+		public void SetLabel (DockItemContainer container, Xwt.Drawing.Image icon, string label)
 		{
 			string labelNoSpaces = label != null ? label.Replace (' ', '-') : null;
 			this.label = label;
-			this.page = page;
+			this.page = container.Control;
 
 			if (icon == null)
 				icon = ImageService.GetIcon ("md-empty");
@@ -212,7 +279,7 @@ namespace MonoDevelop.Components.Docking
 				box.PackStart (alignLabel, false, false, 0);
 
 				btnDock = new ImageButton ();
-				btnDock.Image = pixAutoHide;
+				btnDock.Image = DockItemTitleTab.PixAutoHide;
 				btnDock.TooltipText = GettextCatalog.GetString ("Auto Hide");
 				btnDock.CanFocus = true;
 				//			btnDock.WidthRequest = btnDock.HeightRequest = 17;
@@ -222,13 +289,13 @@ namespace MonoDevelop.Components.Docking
 				UpdateDockButtonAccessibilityLabels ();
 
 				btnClose = new ImageButton ();
-				btnClose.Image = pixClose;
+				btnClose.Image = DockItemTitleTab.PixClose;
 				btnClose.TooltipText = GettextCatalog.GetString ("Close");
 				btnClose.CanFocus = true;
 				//			btnClose.WidthRequest = btnClose.HeightRequest = 17;
 				btnClose.WidthRequest = btnDock.SizeRequest ().Width;
 				btnClose.Clicked += delegate {
-					item.Visible = false;
+					parentTab.Item.Visible = false;
 				};
 				btnClose.ButtonPressEvent += (o, args) => args.RetVal = true;
 
@@ -285,7 +352,7 @@ namespace MonoDevelop.Components.Docking
 		{
 			string realLabel;
 			string realHelp;
-			bool dockable = item.Status != DockItemStatus.Dockable;
+			bool dockable = parentTab.Item.Status != DockItemStatus.Dockable;
 
 			if (string.IsNullOrEmpty (label)) {
 				if (dockable) {
@@ -308,12 +375,21 @@ namespace MonoDevelop.Components.Docking
 			btnDock.Accessible.Description = realHelp;
 		}
 
+		public void RemoveFromParent ()
+		{
+			if (Parent == null) {
+				return;
+			}
+
+			((Gtk.Container)Parent).Remove (this);
+		}
+
 		void OnClickDock (object s, EventArgs a)
 		{
-			if (item.Status == DockItemStatus.AutoHide || item.Status == DockItemStatus.Floating)
-				item.Status = DockItemStatus.Dockable;
+			if (parentTab.Item.Status == DockItemStatus.AutoHide || parentTab.Item.Status == DockItemStatus.Floating)
+				parentTab.Item.Status = DockItemStatus.Dockable;
 			else
-				item.Status = DockItemStatus.AutoHide;
+				parentTab.Item.Status = DockItemStatus.AutoHide;
 		}
 
 		public int LabelWidth {
@@ -339,9 +415,20 @@ namespace MonoDevelop.Components.Docking
 			}
 		}
 
-		public Widget Page {
+		public Control Page {
 			get {
 				return page;
+			}
+		}
+
+		public Gdk.Rectangle Size {
+			get {
+				var req = SizeRequest ();
+				return new Gdk.Rectangle (0, 0, req.Width, req.Height);
+			}
+
+			set {
+				SizeAllocate (value);
 			}
 		}
 
@@ -350,17 +437,17 @@ namespace MonoDevelop.Components.Docking
 			if (btnClose == null)
 				return;
 
-			btnClose.Visible = (item.Behavior & DockItemBehavior.CantClose) == 0;
-			btnDock.Visible = (item.Behavior & DockItemBehavior.CantAutoHide) == 0;
+			btnClose.Visible = (parentTab.Item.Behavior & DockItemBehavior.CantClose) == 0;
+			btnDock.Visible = (parentTab.Item.Behavior & DockItemBehavior.CantAutoHide) == 0;
 
 			if (active || mouseOver) {
 				if (btnClose.Image == null)
-					btnClose.Image = pixClose;
-				if (item.Status == DockItemStatus.AutoHide || item.Status == DockItemStatus.Floating) {
-					btnDock.Image = pixDock;
+					btnClose.Image = DockItemTitleTab.PixClose;
+				if (parentTab.Item.Status == DockItemStatus.AutoHide || parentTab.Item.Status == DockItemStatus.Floating) {
+					btnDock.Image = DockItemTitleTab.PixDock;
 					btnDock.TooltipText = GettextCatalog.GetString ("Dock");
 				} else {
-					btnDock.Image = pixAutoHide;
+					btnDock.Image = DockItemTitleTab.PixAutoHide;
 					btnDock.TooltipText = GettextCatalog.GetString ("Auto Hide");
 				}
 			} else {
@@ -384,7 +471,7 @@ namespace MonoDevelop.Components.Docking
 		protected override bool OnButtonPressEvent (Gdk.EventButton evnt)
 		{
 			if (evnt.TriggersContextMenu ()) {
-				item.ShowDockPopupMenu (this, evnt);
+				parentTab.Item.ShowDockPopupMenu (this, evnt);
 				return false;
 			} else if (evnt.Button == 1) {
 				if (evnt.Type == Gdk.EventType.ButtonPress) {
@@ -401,6 +488,8 @@ namespace MonoDevelop.Components.Docking
 
 		protected override bool OnButtonReleaseEvent (Gdk.EventButton evnt)
 		{
+			var item = parentTab.Item;
+			var frame = parentTab.Frame;
 			if (tabActivated) {
 				tabActivated = false;
 				if (!item.Behavior.HasFlag (DockItemBehavior.CantAutoHide)) {
@@ -414,8 +503,13 @@ namespace MonoDevelop.Components.Docking
 				frame.HidePlaceholder ();
 				if (GdkWindow != null)
 					GdkWindow.Cursor = null;
-				frame.Toplevel.KeyPressEvent -= HeaderKeyPress;
-				frame.Toplevel.KeyReleaseEvent -= HeaderKeyRelease;
+				var controlWidget = frame.Control as Widget;
+				if (controlWidget != null) {
+					controlWidget.Toplevel.KeyPressEvent -= HeaderKeyPress;
+					controlWidget.Toplevel.KeyReleaseEvent -= HeaderKeyRelease;
+				} else {
+					LoggingService.LogWarning ("Toolkit mismatch");
+				}
 			}
 			tabPressed = false;
 			return base.OnButtonReleaseEvent (evnt);
@@ -445,16 +539,21 @@ namespace MonoDevelop.Components.Docking
 		void HandleShowMenu (object sender, EventArgs args)
 		{
 			// Show the menu at the middle of the widget
-			item.ShowDockPopupMenu (this, Allocation.Width / 2, Allocation.Height / 2);
+			parentTab.Item.ShowDockPopupMenu (this, Allocation.Width / 2, Allocation.Height / 2);
 		}
 
 		protected override bool OnMotionNotifyEvent (Gdk.EventMotion evnt)
 		{
+			var item = parentTab.Item;
+			var frame = parentTab.Frame;
 			if (tabPressed && !item.Behavior.HasFlag (DockItemBehavior.NoGrip) && Math.Abs (evnt.X - pressX) > 3 && Math.Abs (evnt.Y - pressY) > 3) {
 				frame.ShowPlaceholder (item);
 				GdkWindow.Cursor = fleurCursor;
-				frame.Toplevel.KeyPressEvent += HeaderKeyPress;
-				frame.Toplevel.KeyReleaseEvent += HeaderKeyRelease;
+				var widgetControl = frame.Control as Widget;
+				if (widgetControl != null) {
+					widgetControl.Toplevel.KeyPressEvent += HeaderKeyPress;
+					widgetControl.Toplevel.KeyReleaseEvent += HeaderKeyRelease;
+				}
 				allowPlaceholderDocking = true;
 				tabPressed = false;
 			}
@@ -636,14 +735,22 @@ namespace MonoDevelop.Components.Docking
 		[GLib.ConnectBeforeAttribute]
 		void HeaderKeyPress (object ob, Gtk.KeyPressEventArgs a)
 		{
+			var item = parentTab.Item;
+			var frame = parentTab.Frame;
 			if (a.Event.Key == Gdk.Key.Control_L || a.Event.Key == Gdk.Key.Control_R) {
 				allowPlaceholderDocking = false;
 				frame.UpdatePlaceholder (item, Allocation.Size, false);
 			}
 			if (a.Event.Key == Gdk.Key.Escape) {
 				frame.HidePlaceholder ();
-				frame.Toplevel.KeyPressEvent -= HeaderKeyPress;
-				frame.Toplevel.KeyReleaseEvent -= HeaderKeyRelease;
+
+				var widgetControl = frame.Control as Widget;
+				if (widgetControl != null) {
+					widgetControl.Toplevel.KeyPressEvent -= HeaderKeyPress;
+					widgetControl.Toplevel.KeyReleaseEvent -= HeaderKeyRelease;
+				} else {
+					LoggingService.LogWarning ("Toolkit mismatch");
+				}
 				Gdk.Pointer.Ungrab (0);
 			}
 		}
@@ -653,7 +760,7 @@ namespace MonoDevelop.Components.Docking
 		{
 			if (a.Event.Key == Gdk.Key.Control_L || a.Event.Key == Gdk.Key.Control_R) {
 				allowPlaceholderDocking = true;
-				frame.UpdatePlaceholder (item, Allocation.Size, true);
+				parentTab.Frame.UpdatePlaceholder (parentTab.Item, Allocation.Size, true);
 			}
 		}
 
@@ -667,11 +774,11 @@ namespace MonoDevelop.Components.Docking
 		{
 			if (Child != null) {
 				req = Child.SizeRequest ();
-				req.Width += (int)(TabPadding.Left + TabPadding.Right);
+				req.Width += (int)(DockItemTitleTab.TabPadding.Left + DockItemTitleTab.TabPadding.Right);
 				if (active)
-					req.Height += (int)(TabActivePadding.Top + TabActivePadding.Bottom);
+					req.Height += (int)(DockItemTitleTab.TabActivePadding.Top + DockItemTitleTab.TabActivePadding.Bottom);
 				else
-					req.Height += (int)(TabPadding.Top + TabPadding.Bottom);
+					req.Height += (int)(DockItemTitleTab.TabPadding.Top + DockItemTitleTab.TabPadding.Bottom);
 			}
 		}
 					
@@ -679,8 +786,8 @@ namespace MonoDevelop.Components.Docking
 		{
 			base.OnSizeAllocated (rect);
 
-			int leftPadding = (int)TabPadding.Left;
-			int rightPadding = (int)TabPadding.Right;
+			int leftPadding = (int)DockItemTitleTab.TabPadding.Left;
+			int rightPadding = (int)DockItemTitleTab.TabPadding.Right;
 			
 			rect.X += leftPadding;
 			rect.Width -= leftPadding + rightPadding;
@@ -689,8 +796,8 @@ namespace MonoDevelop.Components.Docking
 			}
 
 			if (Child != null) {
-				var bottomPadding = active ? (int)TabActivePadding.Bottom : (int)TabPadding.Bottom;
-				var topPadding = active ? (int)TabActivePadding.Top : (int)TabPadding.Top;
+				var bottomPadding = active ? (int)DockItemTitleTab.TabActivePadding.Bottom : (int)DockItemTitleTab.TabPadding.Bottom;
+				var topPadding = active ? (int)DockItemTitleTab.TabActivePadding.Top : (int)DockItemTitleTab.TabPadding.Top;
 				int centerY = topPadding + ((rect.Height - bottomPadding - topPadding) / 2);
 				var height = Child.SizeRequest ().Height;
 				rect.Y += centerY - (height / 2);
@@ -701,7 +808,7 @@ namespace MonoDevelop.Components.Docking
 
 		protected override bool OnExposeEvent (Gdk.EventExpose evnt)
 		{
-			if (VisualStyle.TabStyle == DockTabStyle.Normal)
+			if (parentTab.VisualStyle.TabStyle == DockTabStyle.Normal)
 				DrawAsBrowser (evnt);
 			else
 				DrawNormal (evnt);
@@ -716,23 +823,18 @@ namespace MonoDevelop.Components.Docking
 
 		void DrawAsBrowser (Gdk.EventExpose evnt)
 		{
-			bool first = true;
-			bool last = true;
-
-			if (Parent is TabStrip.TabStripBox) {
-				var tsb = (TabStrip.TabStripBox) Parent;
-				var cts = tsb.Children;
-				first = cts[0] == this;
-				last = cts[cts.Length - 1] == this;
+			bool drawAsTab = false;
+			if (parentTab.BelongsToTabStrip) {
+				drawAsTab = parentTab.ParentTabStrip.TabCount != 0;
 			}
 
 			using (var ctx = Gdk.CairoHelper.Create (GdkWindow)) {
-				if (first && last) {
+				if (!drawAsTab) {
 					ctx.Rectangle (Allocation.X, Allocation.Y, Allocation.Width, Allocation.Height);
-					ctx.SetSourceColor (VisualStyle.PadBackgroundColor.Value.ToCairoColor ());
+					ctx.SetSourceColor (parentTab.VisualStyle.PadBackgroundColor.Value.ToCairoColor ());
 					ctx.Fill ();
 				} else {
-					var image = Active ? dockTabActiveBackImage : dockTabBackImage;
+					var image = Active ? DockItemTitleTab.DockTabActiveBackImage : DockItemTitleTab.DockTabBackImage;
 					image = image.WithSize (Allocation.Width, Allocation.Height);
 
 					ctx.DrawImage (this, image, Allocation.X, Allocation.Y);
