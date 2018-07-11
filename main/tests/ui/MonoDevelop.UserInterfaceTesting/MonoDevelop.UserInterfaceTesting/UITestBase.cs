@@ -137,6 +137,15 @@ namespace MonoDevelop.UserInterfaceTesting
 			TakeScreenShot ("Application-Ready");
 		}
 
+		public void OpenApplicationAndWait ()
+		{
+			var mdProfileDir = Util.CreateTmpDir ();
+			FoldersToClean.Add (mdProfileDir);
+
+			StartSession (mdProfileDir);
+			Session.WaitForElement (IdeQuery.DefaultWorkbench);
+		}
+
 		public void StartSession (string mdProfile, string args = null)
 		{
 			TestService.StartSession (MonoDevelopBinPath, mdProfile, args);
